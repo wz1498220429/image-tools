@@ -246,11 +246,14 @@ let removeWatermarkImage = null;
 let removeCanvas = null;
 let removeCtx = null;
 let isDrawing = false;
+let startX = 0;
+let startY = 0;
 let lastX = 0;
 let lastY = 0;
 let maskCanvas = null;
 let maskCtx = null;
 let history = [];
+let originalImageData = null;
 
 function initRemoveWatermark() {
     const uploadArea = document.getElementById('removeWatermarkUpload');
@@ -285,6 +288,19 @@ function initRemoveWatermark() {
     // 画笔大小
     document.getElementById('brushSize').addEventListener('input', (e) => {
         document.getElementById('brushSizeValue').textContent = e.target.value;
+    });
+    
+    // 工具切换
+    document.querySelectorAll('input[name="removeTool"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            if (removeCanvas) {
+                if (e.target.value === 'brush') {
+                    removeCanvas.style.cursor = 'crosshair';
+                } else {
+                    removeCanvas.style.cursor = 'crosshair';
+                }
+            }
+        });
     });
     
     // 按钮事件
@@ -322,6 +338,9 @@ function initRemoveCanvas() {
     // 绘制图片
     removeCtx.drawImage(removeWatermarkImage, 0, 0, removeCanvas.width, removeCanvas.height);
     
+    // 保存原始图像数据
+    originalImageData = removeCtx.getImageData(0, 0, removeCanvas.width, removeCanvas.height);
+    
     // 初始化遮罩画布
     maskCanvas = document.createElement('canvas');
     maskCanvas.width = removeCanvas.width;
@@ -332,79 +351,161 @@ function initRemoveCanvas() {
     history = [];
     saveHistory();
     
-    // 绑定绘制事件
-    removeCanvas.addEventListener('mousedown', startDrawing);
-    removeCanvas.addEventListener('mousemove', draw);
-    removeCanvas.addEventListener('mouseup', stopDrawing);
-    removeCanvas.addEventListener('mouseout', stopDrawing);
+    // 设置光标
+    removeCanvas.style.cursor = 'crosshair';
+    
+    // 移除之前的事件监听器
+    removeCanvas.replaceWith(removeCanvas.cloneNode(true));
+    removeCanvas = document.getElementById('removeWatermarkCanvas');
+    removeCtx = removeCanvas.getContext('2d');
+    removeCtx.drawImage(removeWatermarkImage, 0, 0, removeCanvas.width, removeCanvas.height);
+    
+    // 绑定事件监听器
+    removeCanvas.addEventListener('mousedown', startDrawingOrRect);
+    removeCanvas.addEventListener('mousemove', drawOrRectPreview);
+    removeCanvas.addEventListener('mouseup', stopDrawingOrRect);
+    removeCanvas.addEventListener('mouseleave', stopDrawingOrRect);
     
     // 触摸事件
-    removeCanvas.addEventListener('touchstart', handleTouch);
+    removeCanvas.addEventListener('touchstart', handleTouchStart);
     removeCanvas.addEventListener('touchmove', handleTouchMove);
-    removeCanvas.addEventListener('touchend', stopDrawing);
+    removeCanvas.addEventListener('touchend', stopDrawingOrRect);
 }
 
-function startDrawing(e) {
-    isDrawing = true;
+function startDrawingOrRect(e) {
+    if (!removeCanvas) return;
+    
     const rect = removeCanvas.getBoundingClientRect();
-    lastX = e.clientX - rect.left;
-    lastY = e.clientY - rect.top;
+    startX = e.clientX - rect.left;
+    startY = e.clientY - rect.top;
+    lastX = startX;
+    lastY = startY;
+    isDrawing = true;
 }
 
-function draw(e) {
+function drawOrRectPreview(e) {
     if (!isDrawing) return;
+    if (!removeCanvas) return;
     
     const rect = removeCanvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    const brushSize = document.getElementById('brushSize').value;
     const tool = document.querySelector('input[name="removeTool"]:checked').value;
+    const brushSize = document.getElementById('brushSize').value;
     
     if (tool === 'brush') {
-        // 画笔模式 - 在遮罩上绘制
-        maskCtx.beginPath();
-        maskCtx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
-        maskCtx.lineWidth = brushSize;
-        maskCtx.lineCap = 'round';
-        maskCtx.moveTo(lastX, lastY);
-        maskCtx.lineTo(x, y);
-        maskCtx.stroke();
-        
-        // 在原画布上显示标记
-        removeCtx.beginPath();
-        removeCtx.strokeStyle = 'rgba(255, 0, 0, 0.3)';
-        removeCtx.lineWidth = brushSize;
-        removeCtx.lineCap = 'round';
-        removeCtx.moveTo(lastX, lastY);
-        removeCtx.lineTo(x, y);
-        removeCtx.stroke();
+        // 画笔模式
+        drawBrush(x, y, brushSize);
+    } else {
+        // 框选模式 - 实时预览框选区域
+        drawRectPreview(startX, startY, x, y, brushSize);
     }
     
     lastX = x;
     lastY = y;
 }
 
-function stopDrawing() {
-    if (isDrawing) {
-        saveHistory();
-    }
-    isDrawing = false;
+function drawBrush(x, y, brushSize) {
+    // 在遮罩上绘制
+    maskCtx.beginPath();
+    maskCtx.strokeStyle = 'rgba(255, 0, 0, 1)';
+    maskCtx.lineWidth = brushSize;
+    maskCtx.lineCap = 'round';
+    maskCtx.lineJoin = 'round';
+    maskCtx.moveTo(lastX, lastY);
+    maskCtx.lineTo(x, y);
+    maskCtx.stroke();
+    
+    // 在原画布上显示标记
+    removeCtx.beginPath();
+    removeCtx.strokeStyle = 'rgba(255, 100, 100, 0.5)';
+    removeCtx.lineWidth = brushSize;
+    removeCtx.lineCap = 'round';
+    removeCtx.lineJoin = 'round';
+    removeCtx.moveTo(lastX, lastY);
+    removeCtx.lineTo(x, y);
+    removeCtx.stroke();
 }
 
-function handleTouch(e) {
+function drawRectPreview(x1, y1, x2, y2, brushSize) {
+    // 重新绘制原图，清除之前的框选预览
+    removeCtx.putImageData(originalImageData, 0, 0);
+    
+    // 绘制新的框选预览
+    const rectX = Math.min(x1, x2);
+    const rectY = Math.min(y1, y2);
+    const rectWidth = Math.abs(x2 - x1);
+    const rectHeight = Math.abs(y2 - y1);
+    
+    removeCtx.strokeStyle = 'rgba(255, 100, 100, 0.7)';
+    removeCtx.lineWidth = 2;
+    removeCtx.strokeRect(rectX, rectY, rectWidth, rectHeight);
+    
+    removeCtx.fillStyle = 'rgba(255, 100, 100, 0.1)';
+    removeCtx.fillRect(rectX, rectY, rectWidth, rectHeight);
+}
+
+function stopDrawingOrRect() {
+    if (!isDrawing) return;
+    
+    isDrawing = false;
+    
+    const tool = document.querySelector('input[name="removeTool"]:checked').value;
+    
+    if (tool === 'rect') {
+        // 框选模式下，将框选区域标记到遮罩
+        const rectX = Math.min(startX, lastX);
+        const rectY = Math.min(startY, lastY);
+        const rectWidth = Math.abs(lastX - startX);
+        const rectHeight = Math.abs(lastY - startY);
+        
+        if (rectWidth > 5 && rectHeight > 5) {
+            // 在遮罩上标记框选区域
+            maskCtx.fillStyle = 'rgba(255, 0, 0, 1)';
+            maskCtx.fillRect(rectX, rectY, rectWidth, rectHeight);
+            
+            // 在原画布上显示标记
+            removeCtx.strokeStyle = 'rgba(255, 100, 100, 0.7)';
+            removeCtx.lineWidth = 2;
+            removeCtx.strokeRect(rectX, rectY, rectWidth, rectHeight);
+            removeCtx.fillStyle = 'rgba(255, 100, 100, 0.2)';
+            removeCtx.fillRect(rectX, rectY, rectWidth, rectHeight);
+        }
+    }
+    
+    saveHistory();
+}
+
+function handleTouchStart(e) {
     e.preventDefault();
     const touch = e.touches[0];
     const rect = removeCanvas.getBoundingClientRect();
-    lastX = touch.clientX - rect.left;
-    lastY = touch.clientY - rect.top;
+    startX = touch.clientX - rect.left;
+    startY = touch.clientY - rect.top;
+    lastX = startX;
+    lastY = startY;
     isDrawing = true;
 }
 
 function handleTouchMove(e) {
     e.preventDefault();
     if (!isDrawing) return;
+    
     const touch = e.touches[0];
-    draw({ clientX: touch.clientX, clientY: touch.clientY });
+    const rect = removeCanvas.getBoundingClientRect();
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+    const tool = document.querySelector('input[name="removeTool"]:checked').value;
+    const brushSize = document.getElementById('brushSize').value;
+    
+    if (tool === 'brush') {
+        drawBrush(x, y, brushSize);
+    } else {
+        drawRectPreview(startX, startY, x, y, brushSize);
+    }
+    
+    lastX = x;
+    lastY = y;
 }
 
 function saveHistory() {
@@ -416,12 +517,15 @@ function undoRemove() {
     if (history.length > 1) {
         history.pop();
         removeCtx.putImageData(history[history.length - 1], 0, 0);
+        // 重新初始化原始数据
+        originalImageData = removeCtx.getImageData(0, 0, removeCanvas.width, removeCanvas.height);
     }
 }
 
 function resetRemove() {
     if (removeWatermarkImage) {
         removeCtx.drawImage(removeWatermarkImage, 0, 0, removeCanvas.width, removeCanvas.height);
+        originalImageData = removeCtx.getImageData(0, 0, removeCanvas.width, removeCanvas.height);
         maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
         history = [];
         saveHistory();
@@ -430,26 +534,25 @@ function resetRemove() {
 
 function applyRemove() {
     const method = document.getElementById('removeMethod').value;
-    const imageData = removeCtx.getImageData(0, 0, removeCanvas.width, removeCanvas.height);
     const maskData = maskCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
     
-    // 先重绘原图
-    removeCtx.drawImage(removeWatermarkImage, 0, 0, removeCanvas.width, removeCanvas.height);
-    const cleanData = removeCtx.getImageData(0, 0, removeCanvas.width, removeCanvas.height);
+    // 获取当前画布数据
+    const imageData = removeCtx.getImageData(0, 0, removeCanvas.width, removeCanvas.height);
     
     switch(method) {
         case 'blur':
-            applyBlur(cleanData, maskData);
+            applyBlur(imageData, maskData);
             break;
         case 'mosaic':
-            applyMosaic(cleanData, maskData);
+            applyMosaic(imageData, maskData);
             break;
         case 'inpaint':
-            applyInpaint(cleanData, maskData);
+            applyInpaint(imageData, maskData);
             break;
     }
     
-    removeCtx.putImageData(cleanData, 0, 0);
+    removeCtx.putImageData(imageData, 0, 0);
+    originalImageData = removeCtx.getImageData(0, 0, removeCanvas.width, removeCanvas.height);
     document.getElementById('downloadRemoveBtn').style.display = 'inline-block';
     
     // 清除遮罩
@@ -462,13 +565,13 @@ function applyBlur(imageData, maskData) {
     const mask = maskData.data;
     const width = imageData.width;
     const height = imageData.height;
-    const radius = 10;
+    const radius = 15;
     
     for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
             const i = (y * width + x) * 4;
             
-            if (mask[i] > 0 || mask[i + 1] > 0) {
+            if (mask[i] > 128 || mask[i + 1] > 128) {
                 let r = 0, g = 0, b = 0, count = 0;
                 
                 for (let dy = -radius; dy <= radius; dy++) {
@@ -486,9 +589,9 @@ function applyBlur(imageData, maskData) {
                     }
                 }
                 
-                data[i] = r / count;
-                data[i + 1] = g / count;
-                data[i + 2] = b / count;
+                data[i] = Math.round(r / count);
+                data[i + 1] = Math.round(g / count);
+                data[i + 2] = Math.round(b / count);
             }
         }
     }
@@ -499,35 +602,39 @@ function applyMosaic(imageData, maskData) {
     const mask = maskData.data;
     const width = imageData.width;
     const height = imageData.height;
-    const blockSize = 10;
+    const blockSize = 8;
     
     for (let y = 0; y < height; y += blockSize) {
         for (let x = 0; x < width; x += blockSize) {
             let hasMask = false;
+            let sumR = 0, sumG = 0, sumB = 0, count = 0;
             
             for (let dy = 0; dy < blockSize && y + dy < height; dy++) {
                 for (let dx = 0; dx < blockSize && x + dx < width; dx++) {
                     const i = ((y + dy) * width + (x + dx)) * 4;
-                    if (mask[i] > 0 || mask[i + 1] > 0) {
+                    
+                    if (mask[i] > 128 || mask[i + 1] > 128) {
                         hasMask = true;
-                        break;
                     }
+                    
+                    sumR += data[i];
+                    sumG += data[i + 1];
+                    sumB += data[i + 2];
+                    count++;
                 }
-                if (hasMask) break;
             }
             
-            if (hasMask) {
-                const i = (y * width + x) * 4;
-                const r = data[i];
-                const g = data[i + 1];
-                const b = data[i + 2];
+            if (hasMask && count > 0) {
+                const avgR = Math.round(sumR / count);
+                const avgG = Math.round(sumG / count);
+                const avgB = Math.round(sumB / count);
                 
                 for (let dy = 0; dy < blockSize && y + dy < height; dy++) {
                     for (let dx = 0; dx < blockSize && x + dx < width; dx++) {
-                        const ni = ((y + dy) * width + (x + dx)) * 4;
-                        data[ni] = r;
-                        data[ni + 1] = g;
-                        data[ni + 2] = b;
+                        const i = ((y + dy) * width + (x + dx)) * 4;
+                        data[i] = avgR;
+                        data[i + 1] = avgG;
+                        data[i + 2] = avgB;
                     }
                 }
             }
@@ -541,14 +648,13 @@ function applyInpaint(imageData, maskData) {
     const width = imageData.width;
     const height = imageData.height;
     
-    // 简单的智能填充：使用周围非遮罩区域的平均颜色
     for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
             const i = (y * width + x) * 4;
             
-            if (mask[i] > 0 || mask[i + 1] > 0) {
+            if (mask[i] > 128 || mask[i + 1] > 128) {
                 let r = 0, g = 0, b = 0, count = 0;
-                const radius = 15;
+                const radius = 20;
                 
                 for (let dy = -radius; dy <= radius; dy++) {
                     for (let dx = -radius; dx <= radius; dx++) {
@@ -557,7 +663,7 @@ function applyInpaint(imageData, maskData) {
                         
                         if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
                             const ni = (ny * width + nx) * 4;
-                            if (mask[ni] === 0 && mask[ni + 1] === 0) {
+                            if (mask[ni] < 128 && mask[ni + 1] < 128) {
                                 r += data[ni];
                                 g += data[ni + 1];
                                 b += data[ni + 2];
@@ -568,9 +674,9 @@ function applyInpaint(imageData, maskData) {
                 }
                 
                 if (count > 0) {
-                    data[i] = r / count;
-                    data[i + 1] = g / count;
-                    data[i + 2] = b / count;
+                    data[i] = Math.round(r / count);
+                    data[i + 1] = Math.round(g / count);
+                    data[i + 2] = Math.round(b / count);
                 }
             }
         }
