@@ -10,7 +10,7 @@
     <div class="container">
         <header>
             <h1>🖼️ Image Tools</h1>
-            <p>免费在线图片压缩 & 格式转换工具</p>
+            <p>免费在线图片压缩 & 格式转换 & 水印工具</p>
         </header>
 
         <main>
@@ -21,6 +21,12 @@
                 </button>
                 <button class="tab-btn" data-tab="convert">
                     🔄 格式转换
+                </button>
+                <button class="tab-btn" data-tab="watermark">
+                    💧 加水印
+                </button>
+                <button class="tab-btn" data-tab="remove-watermark">
+                    🧹 去水印
                 </button>
             </div>
 
@@ -60,14 +66,168 @@
                     ✨ 开始转换
                 </button>
             </div>
-        </main>
 
-        <!-- 广告区域 -->
-        <aside class="ads">
-            <p>📢 Google 广告位（后续添加）</p>
-        </aside>
+            <!-- 加水印功能 -->
+            <div id="watermark" class="tab-content">
+                <h2>💧 添加水印</h2>
+                <div class="upload-area" id="watermarkUpload">
+                    <p>拖拽图片到这里或点击选择</p>
+                    <input type="file" id="watermarkInput" accept="image/*" hidden>
+                </div>
+
+                <div class="watermark-options" id="watermarkOptions" style="display:none;">
+                    <h3>水印设置</h3>
+                    
+                    <!-- 水印类型 -->
+                    <div class="option-group">
+                        <label>水印类型：</label>
+                        <div class="radio-group">
+                            <label class="radio-label">
+                                <input type="radio" name="watermarkType" value="text" checked>
+                                <span>📝 文字水印</span>
+                            </label>
+                            <label class="radio-label">
+                                <input type="radio" name="watermarkType" value="image">
+                                <span>🖼️ 图片水印</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- 文字水印选项 -->
+                    <div id="textWatermarkOptions">
+                        <div class="option-group">
+                            <label for="watermarkText">水印文字：</label>
+                            <input type="text" id="watermarkText" placeholder="请输入水印文字" value="Image Tools">
+                        </div>
+                        
+                        <div class="option-group">
+                            <label for="watermarkFont">字体大小：<span id="fontSizeValue">24</span>px</label>
+                            <input type="range" id="watermarkFont" min="12" max="100" value="24">
+                        </div>
+
+                        <div class="option-group">
+                            <label for="watermarkColor">文字颜色：</label>
+                            <input type="color" id="watermarkColor" value="#ffffff">
+                        </div>
+                    </div>
+
+                    <!-- 图片水印选项 -->
+                    <div id="imageWatermarkOptions" style="display:none;">
+                        <div class="option-group">
+                            <label>水印图片：</label>
+                            <div class="upload-small" id="watermarkImageUpload">
+                                <p>点击选择水印图片</p>
+                                <input type="file" id="watermarkImageInput" accept="image/*" hidden>
+                            </div>
+                            <div id="watermarkImagePreview"></div>
+                        </div>
+                        
+                        <div class="option-group">
+                            <label for="watermarkScale">水印大小：<span id="scaleValue">20</span>%</label>
+                            <input type="range" id="watermarkScale" min="5" max="50" value="20">
+                        </div>
+                    </div>
+
+                    <!-- 通用选项 -->
+                    <div class="option-group">
+                        <label for="watermarkOpacity">透明度：<span id="opacityValue">80</span>%</label>
+                        <input type="range" id="watermarkOpacity" min="10" max="100" value="80">
+                    </div>
+
+                    <div class="option-group">
+                        <label for="watermarkPosition">位置：</label>
+                        <select id="watermarkPosition">
+                            <option value="bottom-right">↘️ 右下角</option>
+                            <option value="bottom-left">↙️ 左下角</option>
+                            <option value="top-right">↗️ 右上角</option>
+                            <option value="top-left">↖️ 左上角</option>
+                            <option value="center">⊙ 居中</option>
+                            <option value="tile">▦ 平铺</option>
+                        </select>
+                    </div>
+
+                    <!-- 预览区域 -->
+                    <div class="preview-section">
+                        <h3>预览效果</h3>
+                        <div id="watermarkPreview" class="preview-canvas"></div>
+                    </div>
+
+                    <div class="button-group">
+                        <button id="previewWatermarkBtn" class="btn-secondary">
+                            👁️ 预览效果
+                        </button>
+                        <button id="downloadWatermarkBtn" class="btn-primary">
+                            💾 下载图片
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 去水印功能 -->
+            <div id="remove-watermark" class="tab-content">
+                <h2>🧹 去水印</h2>
+                <div class="upload-area" id="removeWatermarkUpload">
+                    <p>拖拽图片到这里或点击选择</p>
+                    <input type="file" id="removeWatermarkInput" accept="image/*" hidden>
+                </div>
+
+                <div class="remove-watermark-options" id="removeWatermarkOptions" style="display:none;">
+                    <h3>去水印设置</h3>
+                    <p class="tip">💡 用鼠标在图片上框选或涂抹水印区域</p>
+
+                    <div class="option-group">
+                        <label>工具选择：</label>
+                        <div class="radio-group">
+                            <label class="radio-label">
+                                <input type="radio" name="removeTool" value="brush" checked>
+                                <span>🖌️ 画笔涂抹</span>
+                            </label>
+                            <label class="radio-label">
+                                <input type="radio" name="removeTool" value="rect">
+                                <span>⬜ 框选区域</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="option-group">
+                        <label for="brushSize">画笔大小：<span id="brushSizeValue">20</span>px</label>
+                        <input type="range" id="brushSize" min="5" max="100" value="20">
+                    </div>
+
+                    <div class="option-group">
+                        <label>去除方式：</label>
+                        <select id="removeMethod">
+                            <option value="blur">🌫️ 模糊处理</option>
+                            <option value="mosaic">🔲 马赛克</option>
+                            <option value="inpaint">🎨 智能填充（推荐）</option>
+                        </select>
+                    </div>
+
+                    <!-- 画布区域 -->
+                    <div class="canvas-container">
+                        <canvas id="removeWatermarkCanvas"></canvas>
+                    </div>
+
+                    <div class="button-group">
+                        <button id="undoRemoveBtn" class="btn-secondary">
+                            ↩️ 撤销
+                        </button>
+                        <button id="resetRemoveBtn" class="btn-secondary">
+                            🔄 重置
+                        </button>
+                        <button id="applyRemoveBtn" class="btn-primary">
+                            ✨ 应用去除
+                        </button>
+                        <button id="downloadRemoveBtn" class="btn-primary" style="display:none;">
+                            💾 下载图片
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
     </div>
 
     <script src="js/app.js"></script>
+    <script src="js/watermark.js"></script>
 </body>
 </html>
